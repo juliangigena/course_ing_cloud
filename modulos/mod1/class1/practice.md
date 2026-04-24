@@ -6,9 +6,9 @@ Esta guía detalla los pasos para la "Demo en vivo" de la Clase 2. El objetivo e
 
 Software: Descargar e instalar UTM (Recomendado para M1/M2/M3) o VMware Fusion.
 
-Imagen ISO: Descargar Ubuntu Server 22.04 LTS (Versión ARM64 para Mac modernos o x86_64 para Mac Intel).
+Imagen ISO: Descargar Ubuntu 25.10 (Versión ARM64 para Mac modernos o x86_64 para Mac Intel).
 
-Tiempo estimado de demo: 20-25 minutos.
+Tiempo estimado de demo: 30-35 minutos.
 
 2. El Paso a Paso (Para dictar en clase)
 
