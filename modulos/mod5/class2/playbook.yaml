@@ -1,0 +1,64 @@
+- name: Configurar Servidor Web en AWS EC2
+  hosts: all
+  become: true
+  vars:
+    # Ajusta con los datos proporcionados por Ngrok
+    db_host: "4.tcp.ngrok.io"
+    db_port: "12345"
+    db_name: "banco_db"
+    db_user: "admin_banco"
+    db_pass: "SecretPassword123!"
+
+  tasks:
+    - name: Instalar Docker
+      dnf:
+        name: docker
+        state: present
+
+    - name: Iniciar servicio de Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Desplegar aplicación Python/Flask en Docker
+      shell: |
+        docker run -d --rm --name web_app -p 80:5000 \
+          -e DB_HOST={{ db_host }} \
+          -e DB_PORT={{ db_port }} \
+          -e DB_NAME={{ db_name }} \
+          -e DB_USER={{ db_user }} \
+          -e DB_PASS={{ db_pass }} \
+          python:3.10-slim sh -c "
+            pip install flask psycopg2-binary &&
+            python -c '
+from flask import Flask, request, jsonify
+import psycopg2, os
+
+app = Flask(__name__)
+
+def get_db():
+    return psycopg2.connect(
+        host=os.environ[\"DB_HOST\"],
+        port=os.environ[\"DB_PORT\"],
+        dbname=os.environ[\"DB_NAME\"],
+        user=os.environ[\"DB_USER\"],
+        password=os.environ[\"DB_PASS\"]
+    )
+
+@app.route(\"/venta\", methods=[\"POST\"])
+def registrar_venta():
+    data = request.get_json()
+    monto = data.get(\"monto\", 0)
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(\"INSERT INTO ventas (monto) VALUES (%s)\", (monto,))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return jsonify({\"status\": \"success\", \"monto_registrado\": monto}), 201
+
+if __name__ == \"__main__\":
+    app.run(host=\"0.0.0.0\", port=5000)
+'
+          "

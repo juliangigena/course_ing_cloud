@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  postgres_onprem:
+    image: postgres:15-alpine
+    container_name: postgres_onprem
+    environment:
+      POSTGRES_DB: banco_db
+      POSTGRES_USER: admin_banco
+      POSTGRES_PASSWORD: SecretPassword123!
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
