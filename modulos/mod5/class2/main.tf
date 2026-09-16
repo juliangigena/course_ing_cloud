@@ -4,13 +4,13 @@ provider "aws" {
 
 # Key Pair para que Ansible pueda conectarse por SSH
 resource "aws_key_pair" "deployer" {
-  key_name   = "demo-hibrida-key"
+  key_name   = "demo-hibrida-key-2"
   public_key = file(pathexpand("~/.ssh/id_rsa.pub"))
 }
 
 # Security Group: Permite HTTP (80) y SSH (22)
 resource "aws_security_group" "ec2_sg" {
-  name        = "demo-hibrida-sg"
+  name        = "demo-hibrida-sg-2"
   description = "Permite acceso HTTP y SSH"
 
   ingress {
@@ -37,9 +37,9 @@ resource "aws_security_group" "ec2_sg" {
 
 # Instancia EC2
 resource "aws_instance" "app_aws" {
-  ami           = "ami-007dd4cdc89d5d91d" # Amazon Linux 2023 en us-east-1
-  instance_type = "t3.micro"
-  key_name      = aws_key_pair.deployer.key_name
+  ami                    = "ami-007dd4cdc89d5d91d" # Amazon Linux 2023 en us-east-1
+  instance_type          = "t3.micro"
+  key_name               = aws_key_pair.deployer.key_name
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
 
   tags = {

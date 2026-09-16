@@ -4,7 +4,7 @@
     ├── init.sql                    # Esquema inicial de la DB
     ├── main.tf                     # Código de Terraform para la EC2 en AWS
     ├── inventory.ini               # Inventario dinámico/estático para Ansible
-    └── playbook.yml                # Playbook de Ansible para configurar la EC2}
+    └── playbook.yml                # Playbook de Ansible para configurar la EC2
 
 ## Paso 1 "entorno local"
     Ejecutar el compose:
