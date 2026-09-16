@@ -43,10 +43,18 @@
         aws organizations attach-policy \
         --policy-id $POLICY_ID \
         --target-id $ACCOUNT_ID
-
+        ############
         aws iam create-policy \
         --policy-name DenyEC2WithoutCostCenter \
         --policy-document file://scp_politica_tags.json
+
+        # Obtener el nombre del usuario actual
+        USER_NAME=$(aws sts get-caller-identity --query "Arn" --output text | cut -d'/' -f2)
+
+        # Adjuntar la política al usuario
+        aws iam attach-user-policy \
+        --user-name $USER_NAME \
+        --policy-arn arn:aws:iam::$(aws sts get-caller-identity --query "Account" --output text):policy/DenyEC2WithoutCostCenter
 
 ## Crear infraestructura con terraform
 
