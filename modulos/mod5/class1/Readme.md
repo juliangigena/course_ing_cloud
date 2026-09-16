@@ -43,11 +43,19 @@
         aws organizations attach-policy \
         --policy-id $POLICY_ID \
         --target-id $ACCOUNT_ID
+<<<<<<< HEAD
         ############
+=======
+        ######################################
+>>>>>>> b3bd0574aeae0990c51d124c8b6cfad47d188661
         aws iam create-policy \
         --policy-name DenyEC2WithoutCostCenter \
         --policy-document file://scp_politica_tags.json
 
+<<<<<<< HEAD
+=======
+        #Caso particular para usaurios admin
+>>>>>>> b3bd0574aeae0990c51d124c8b6cfad47d188661
         # Obtener el nombre del usuario actual
         USER_NAME=$(aws sts get-caller-identity --query "Arn" --output text | cut -d'/' -f2)
 
@@ -56,6 +64,13 @@
         --user-name $USER_NAME \
         --policy-arn arn:aws:iam::$(aws sts get-caller-identity --query "Account" --output text):policy/DenyEC2WithoutCostCenter
 
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> b3bd0574aeae0990c51d124c8b6cfad47d188661
 ## Crear infraestructura con terraform
 
+## Ejecucion lambda apagado
+    python3 lambda_finops_segura.py 
 
