@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: postgres_local
+    environment:
+      POSTGRES_DB: banco_db
+      POSTGRES_USER: admin_banco
+      POSTGRES_PASSWORD: Secret123!
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  web:
+    build: .
+    container_name: web_app_local
+    ports:
+      - "80:5000"
+    environment:
+      DB_HOST: db
+      DB_NAME: banco_db
+      DB_USER: admin_banco
+      DB_PASS: Secret123!
+    depends_on:
+      - db
+
+volumes:
+  pgdata:

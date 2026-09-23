@@ -1,0 +1,245 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Stack para Demo Fase 3 - Modelo de Responsabilidad Compartida (ECS Fargate + RDS PostgreSQL)
+
+Resources:
+  # -----------------------------------------------------------------
+  # 1. RED / SECURITY GROUPS
+  # -----------------------------------------------------------------
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: VPC-Demo-Fase3
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Public-Subnet-1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Public-Subnet-2
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  SubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref RouteTable
+
+  SubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref RouteTable
+
+  # Security Group para la Web / ECS Fargate
+  ContainerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Permitir trafico web HTTP
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+
+  # Security Group para la base de datos RDS PaaS
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Permitir acceso a Postgres desde ECS Fargate
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ContainerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 0.0.0.0/0
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet Group para RDS
+      SubnetIds:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+
+  # -----------------------------------------------------------------
+  # 2. BASE DE DATOS ADMINISTRADA (PaaS) - AMAZON RDS
+  # -----------------------------------------------------------------
+  PostgresDatabase:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: banco-db-paas
+      AllocatedStorage: '20'
+      DBInstanceClass: db.t3.micro
+      Engine: postgres
+      EngineVersion: '15'
+      MasterUsername: admin_banco
+      MasterUserPassword: Secret123!
+      DBName: banco_db
+      VPCSecurityGroups:
+        - !Ref DatabaseSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      PubliclyAccessible: true
+      BackupRetentionPeriod: 0 # Incidente 1: Sin backups automaticos
+      DeletionProtection: false
+
+  # -----------------------------------------------------------------
+  # 3. ECS FARGATE (COMPUTO SERVERLESS)
+  # -----------------------------------------------------------------
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: cluster-demo-fase3
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  ECSTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: app-banco-fargate
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: web-app
+          Image: public.ecr.aws/docker/library/python:3.10-slim
+          Cpu: 256
+          Memory: 512
+          Essential: true
+          PortMappings:
+            - ContainerPort: 5000
+              HostPort: 5000
+          Environment:
+            - Name: DB_HOST
+              Value: !GetAtt PostgresDatabase.Endpoint.Address
+            - Name: DB_NAME
+              Value: banco_db
+            - Name: DB_USER
+              Value: admin_banco
+            - Name: DB_PASS
+              Value: Secret123!
+          Command:
+            - sh
+            - -c
+            - |
+              pip install flask psycopg2-binary
+              cat << 'EOF' > app.py
+              import os, psycopg2
+              from flask import Flask, jsonify, request
+              app = Flask(__name__)
+              def get_db():
+                  return psycopg2.connect(
+                      host=os.environ.get("DB_HOST"),
+                      database=os.environ.get("DB_NAME"),
+                      user=os.environ.get("DB_USER"),
+                      password=os.environ.get("DB_PASS")
+                  )
+              @app.route('/')
+              def health():
+                  try:
+                      c = get_db()
+                      c.close()
+                      return jsonify({"status": "healthy", "layer": "PaaS / ECS Fargate"}), 200
+                  except Exception as e:
+                      return jsonify({"status": "unhealthy", "error": str(e)}), 500
+              @app.route('/venta', methods=['POST'])
+              def venta():
+                  data = request.get_json() or {}
+                  monto = data.get("monto", 0.0)
+                  try:
+                      c = get_db()
+                      cur = c.cursor()
+                      cur.execute("CREATE TABLE IF NOT EXISTS ventas (id SERIAL PRIMARY KEY, monto NUMERIC);")
+                      cur.execute("INSERT INTO ventas (monto) VALUES (%s) RETURNING id;", (monto,))
+                      v_id = cur.fetchone()[0]
+                      c.commit()
+                      cur.close()
+                      c.close()
+                      return jsonify({"status": "success", "id": v_id, "monto": monto}), 201
+                  except Exception as e:
+                      return jsonify({"status": "error", "error": str(e)}), 500
+              if __name__ == '__main__':
+                  app.run(host='0.0.0.0', port=5000)
+              EOF
+              python app.py
+
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn: PublicRoute
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: service-app-banco
+      TaskDefinition: !Ref ECSTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref PublicSubnet1
+          SecurityGroups:
+            - !Ref ContainerSecurityGroup
+
+Outputs:
+  RDSEndpoint:
+    Description: Endpoint de la base de datos RDS (PaaS)
+    Value: !GetAtt PostgresDatabase.Endpoint.Address
