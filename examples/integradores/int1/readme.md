@@ -79,6 +79,47 @@
                 -H "Content-Type: application/json" \
                 -d '{"monto": 9990.00}'
 
+        # Eliminar todo
+            aws cloudformation delete-stack --stack-name demo-fase3-paas --region us-east-1
+
 
 ## Comando para pruebas:
+    #1
     docker exec -it postgres_local psql -U admin_banco -d banco_db -c "SELECT * FROM ventas;"
+    #2
+    Simulación de Incidentes en Fase 2:
+
+    Incidente 3 (Acceso SSH / Malas configuraciones):
+
+        Mostrar el Security Group con 22 abierto a todo el mundo.
+
+        Simular intervención/intrusión borrando o deteniendo el contenedor web:
+        Bash
+
+            docker stop web_app_local
+
+        Debate: AWS dio la VM sana; la configuración del firewall (SG) e intrusión es 100% responsabilidad del cliente.
+
+        Incidente 2 (Falla del Data Center / Apagón físico):
+
+        Desde la consola de AWS, ir a EC2 > Instance State > Stop / Terminate.
+
+        Intentar ingresar a la IP pública de la EC2 desde el navegador.
+
+        Debate: La falla del hardware es de AWS, pero la indisponibilidad de la aplicación para el negocio es responsabilidad del cliente por depender de una sola instancia/AZ sin redundancia ni Auto Scaling.
+    #3
+        RDS_HOST=$(aws cloudformation describe-stacks \
+        --stack-name demo-fase3-paas \
+        --region us-east-1 \
+        --query "Stacks[0].Outputs[?OutputKey=='RDSEndpoint'].OutputValue" \
+        --output text)
+
+        echo $RDS_HOST
+
+        PGPASSWORD='Secret123!' psql -h $RDS_HOST -U admin_banco -d postgres -c "DROP DATABASE banco_db;"
+
+        aws rds describe-db-snapshots \
+        --db-instance-identifier banco-db-paas \
+        --region us-east-1
+
+        PGPASSWORD='Secret123!' psql -h $RDS_HOST -U admin_banco -d postgres -c "CREATE DATABASE banco_db;"
