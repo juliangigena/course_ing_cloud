@@ -83,6 +83,7 @@
             aws cloudformation delete-stack --stack-name demo-fase3-paas --region us-east-1
 
 
+
 ## Comando para pruebas:
     #1
     docker exec -it postgres_local psql -U admin_banco -d banco_db -c "SELECT * FROM ventas;"
